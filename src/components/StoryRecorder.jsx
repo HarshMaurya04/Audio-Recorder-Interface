@@ -21,6 +21,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import CloseIcon from "@mui/icons-material/Close";
 
 import "./StoryRecorder.css";
+import { checkAudioQuality } from "../utils/audioQualityChecker";
 
 /* ============================================================
    HARDCODED STORY
@@ -414,17 +415,30 @@ const StoryRecorder = () => {
           type: options.mimeType,
         });
 
-        setAudioBlob(blob);
-
-        setAudioURL(URL.createObjectURL(blob));
-
-        if (isMountedRef.current) {
-          setStopping(false);
-        }
-
         audioChunksRef.current = [];
 
         cleanupRecording();
+
+        try {
+          console.log("Checking audio quality...");
+
+          const result = await checkAudioQuality(blob);
+
+          console.log("Audio quality response:", result);
+
+          alert(result.message);
+
+          setAudioBlob(blob);
+          setAudioURL(URL.createObjectURL(blob));
+        } catch (error) {
+          console.error("Audio quality check failed:", error);
+
+          alert(error.message || "Unable to check audio quality.");
+        } finally {
+          if (isMountedRef.current) {
+            setStopping(false);
+          }
+        }
       };
 
       mediaRecorder.start();
@@ -451,11 +465,8 @@ const StoryRecorder = () => {
         setStopping(true);
         setIsRecording(false);
 
-        setTimeout(() => {
-          setShowText(false);
-
-          mediaRecorderRef.current?.stop();
-        }, 1000);
+        setShowText(false);
+        mediaRecorderRef.current?.stop();
       }
     } catch (e) {
       console.error("Failed to stop recorder:", e);
