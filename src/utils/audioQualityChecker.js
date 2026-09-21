@@ -1,13 +1,8 @@
-const BLANK_WINDOW_MS = 100;
-const BLANK_HOP_MS = 50;
-const WAV_PATH = "/input.wav";
-
 let wasmModulePromise = null;
 
-const log = (msg, ...args) => console.log(`${msg}`, ...args);
+// const log = (msg, ...args) => console.log(`${msg}`, ...args);
 const err = (msg, ...args) => console.error(`${msg}`, ...args);
 
-// LOAD WASM SCRIPT
 function loadScript(src, globalName) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) {
@@ -36,16 +31,11 @@ function loadScript(src, globalName) {
   });
 }
 
-// INITIALIZE WASM
 async function initializeWasm() {
   try {
     await loadScript("/audioQuality.js", "AudioQualityModule");
 
-    log("Audio Quality glue script loaded, initializing WASM…");
-
     const mod = await window.AudioQualityModule();
-
-    log("Audio Quality WASM module ready");
 
     return mod;
   } catch (e) {
@@ -54,7 +44,6 @@ async function initializeWasm() {
   }
 }
 
-// GET WASM MODULE
 function getWasmModule() {
   if (!wasmModulePromise) {
     wasmModulePromise = initializeWasm();
@@ -63,22 +52,6 @@ function getWasmModule() {
   return wasmModulePromise;
 }
 
-// BLANK AUDIO CHECK
-function checkBlank(mod, path) {
-  const result = mod.ccall(
-    "isBlankAudio",
-    "number",
-    ["string", "number", "number"],
-    [path, BLANK_WINDOW_MS, BLANK_HOP_MS],
-  );
-
-  // log(`Blank check result: ${result}`);
-
-  if (result === -1) return null;
-  return result === 1;
-}
-
-// AUDIO QUALITY CHECK
 export async function checkAudioQuality(audioBlob) {
   if (!audioBlob) {
     throw new Error("No audio blob provided");
@@ -86,79 +59,44 @@ export async function checkAudioQuality(audioBlob) {
 
   const mod = await getWasmModule();
 
-  log("Starting audio quality check");
-
-  // MEDIA → WAV
-  const arrayBuffer = await audioBlob.arrayBuffer();
-  const inputBytes = new Uint8Array(arrayBuffer);
-
-  const inputPtr = mod._malloc(inputBytes.length);
-  mod.HEAPU8.set(inputBytes, inputPtr);
-
-  const outSizePtr = mod._malloc(4);
-
-  log("Decoding Media → WAV…");
-
-  const wavPtr = mod._decodeMediaToWav(inputPtr, inputBytes.length, outSizePtr);
-
-  const wavSize = mod.getValue(outSizePtr, "i32");
-
-  // log(`Decode → wavSize: ${wavSize}`);
-
-  if (wavPtr === 0 || wavSize === 0) {
-    err("Decode failed: wavPtr or wavSize is 0");
-
-    mod._free(inputPtr);
-    mod._free(outSizePtr);
-
-    throw new Error("Decode failed");
-  }
-
-  // Copy WAV bytes NOW before _freeBuffer releases wavPtr
-  const wavBytes = new Uint8Array(mod.HEAPU8.buffer, wavPtr, wavSize).slice();
-
-  mod._freeBuffer(wavPtr);
-  mod._free(inputPtr);
-  mod._free(outSizePtr);
-
-  // BLANK AUDIO CHECK
-  log("Checking for blank audio…");
+  let inputPtr = 0;
 
   try {
-    mod.FS.writeFile(WAV_PATH, wavBytes);
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const inputBytes = new Uint8Array(arrayBuffer);
+
+    inputPtr = mod._malloc(inputBytes.length);
+
+    if (!inputPtr) {
+      throw new Error("Failed to allocate WASM memory for audio input");
+    }
+
+    mod.HEAPU8.set(inputBytes, inputPtr);
+
+    const jsonStr = mod.ccall(
+      "checkAudioQualityWasm",
+      "string",
+      ["number", "number"],
+      [inputPtr, inputBytes.length],
+    );
+
+    let data;
+
+    try {
+      data = JSON.parse(jsonStr);
+    } catch (e) {
+      err("Failed to parse audio quality JSON:", e);
+      err("Raw response:", jsonStr);
+      throw new Error("Audio quality response parse error");
+    }
+
+    return data;
   } catch (e) {
-    err("Failed to write WAV to WASM FS:", e);
-    throw new Error("Filesystem write failed");
+    err("Audio quality check failed:", e);
+    throw e;
+  } finally {
+    if (inputPtr) {
+      mod._free(inputPtr);
+    }
   }
-
-  const isBlank = checkBlank(mod, WAV_PATH);
-
-  if (isBlank === true) {
-    const result = {
-      status: -2,
-      message: "Blank audio",
-    };
-
-    log("Blank audio response:", result);
-
-    return result;
-  }
-
-  // SNR
-  log("Computing SNR…");
-
-  const jsonStr = mod.ccall("computeSNR", "string", ["string"], [WAV_PATH]);
-
-  let data;
-
-  try {
-    data = JSON.parse(jsonStr);
-
-    // log("Parsed SNR result:", data);
-  } catch (e) {
-    err("Failed to parse SNR JSON:", e, "Raw string:", jsonStr);
-    throw new Error("SNR parse error");
-  }
-
-  return data;
 }

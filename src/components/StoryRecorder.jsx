@@ -23,27 +23,18 @@ import CloseIcon from "@mui/icons-material/Close";
 import "./StoryRecorder.css";
 import { checkAudioQuality } from "../utils/audioQualityChecker";
 
-/* ============================================================
-   HARDCODED STORY
-   ============================================================ */
-
+// HARDCODED STORY
 const STORY_TITLE = "The Little Forest Adventure";
 
 const STORY_TEXT =
   "Once upon a time, there was a little girl who loved exploring the forest near her home. Every morning, she would walk along the quiet path and listen to the birds singing in the trees. One day, she discovered a beautiful hidden garden filled with colorful flowers.";
 
-/* ============================================================
-   RECORDER SETTINGS
-   ============================================================ */
-
+// RECORDER SETTINGS
 const defaultMimeType = "audio/webm";
 const defaultBitrate = 64000;
 const maxRecordingTime = 60;
 
-/* ============================================================
-   STORY RECORDER
-   ============================================================ */
-
+// STORY RECORDER
 const StoryRecorder = () => {
   const formatTime = useCallback(
     (s) =>
@@ -54,10 +45,7 @@ const StoryRecorder = () => {
     [],
   );
 
-  /* ==========================================================
-     RECORDER STATE
-     ========================================================== */
-
+  // RECORDER STATE
   const [isRecording, setIsRecording] = useState(false);
   const [timer, setTimer] = useState(0);
   const [showText, setShowText] = useState(true);
@@ -79,10 +67,7 @@ const StoryRecorder = () => {
 
   const [submitted, setSubmitted] = useState(false);
 
-  /* ==========================================================
-     REFS
-     ========================================================== */
-
+  // REFS
   const canvasRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -95,10 +80,7 @@ const StoryRecorder = () => {
   const audioContextRef = useRef(null);
   const dataArrayRef = useRef(null);
 
-  /* ==========================================================
-     CLEANUP RECORDING
-     ========================================================== */
-
+  // CLEANUP RECORDING
   const cleanupRecording = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -135,10 +117,7 @@ const StoryRecorder = () => {
     setTimer(0);
   };
 
-  /* ==========================================================
-     LOAD MICROPHONE DEVICES
-     ========================================================== */
-
+  // LOAD MICROPHONE DEVICES
   const loadInputDevices = useCallback(async () => {
     setInputDevicesLoading(true);
 
@@ -214,10 +193,7 @@ const StoryRecorder = () => {
     return uniqueDevices.length > 0;
   }, []);
 
-  /* ==========================================================
-     CHECK RECORDER SUPPORT + MICROPHONE PERMISSION
-     ========================================================== */
-
+  // CHECK RECORDER SUPPORT + MICROPHONE PERMISSION
   const checkSupportAndPermission = useCallback(async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setRecorderSupported(false);
@@ -250,10 +226,7 @@ const StoryRecorder = () => {
     return () => cleanupRecording();
   }, [checkSupportAndPermission]);
 
-  /* ==========================================================
-     REQUEST MICROPHONE PERMISSION
-     ========================================================== */
-
+  // REQUEST MICROPHONE PERMISSION
   const requestMicPermission = useCallback(() => {
     navigator.mediaDevices
       .getUserMedia({ audio: true })
@@ -277,10 +250,7 @@ const StoryRecorder = () => {
       });
   }, [loadInputDevices]);
 
-  /* ==========================================================
-     DRAW WAVEFORM
-     ========================================================== */
-
+  // DRAW WAVEFORM
   const drawWaveform = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -333,10 +303,7 @@ const StoryRecorder = () => {
     draw();
   };
 
-  /* ==========================================================
-     START RECORDING
-     ========================================================== */
-
+  // START RECORDING
   const startRecording = async () => {
     if (!permissionGranted) {
       setMicModalOpen(true);
@@ -420,20 +387,30 @@ const StoryRecorder = () => {
         cleanupRecording();
 
         try {
-          console.log("Checking audio quality...");
-
           const result = await checkAudioQuality(blob);
 
           console.log("Audio quality response:", result);
 
-          alert(result.message);
+          if (result.error) {
+            throw new Error(result.error);
+          }
+
+          if (result.isBlank) {
+            setShowText(true);
+            alert("Blank audio detected.");
+            return;
+          }
+
+          if (result.isNoisy) {
+            setShowText(true);
+            alert("Noisy audio detected.");
+            return;
+          }
 
           setAudioBlob(blob);
           setAudioURL(URL.createObjectURL(blob));
         } catch (error) {
           console.error("Audio quality check failed:", error);
-
-          alert(error.message || "Unable to check audio quality.");
         } finally {
           if (isMountedRef.current) {
             setStopping(false);
@@ -455,10 +432,7 @@ const StoryRecorder = () => {
     }
   };
 
-  /* ==========================================================
-     STOP RECORDING
-     ========================================================== */
-
+  // STOP RECORDING
   const stopRecording = useCallback(() => {
     try {
       if (mediaRecorderRef.current && isRecording) {
@@ -475,16 +449,10 @@ const StoryRecorder = () => {
     }
   }, [isRecording]);
 
-  /* ==========================================================
-     CLOSE MICROPHONE DIALOG
-     ========================================================== */
-
+  // CLOSE MICROPHONE DIALOG
   const closeMicModal = () => setMicModalOpen(false);
 
-  /* ==========================================================
-     MICROPHONE DEVICE CHANGE
-     ========================================================== */
-
+  // MICROPHONE DEVICE CHANGE
   useEffect(() => {
     if (!navigator.mediaDevices?.addEventListener) {
       return;
@@ -498,10 +466,7 @@ const StoryRecorder = () => {
       navigator.mediaDevices.removeEventListener("devicechange", handler);
   }, [loadInputDevices]);
 
-  /* ==========================================================
-     RECORDING TIMER
-     ========================================================== */
-
+  // RECORDING TIMER
   useEffect(() => {
     if (!isRecording) return;
 
@@ -522,10 +487,7 @@ const StoryRecorder = () => {
     return () => clearInterval(id);
   }, [isRecording, stopRecording]);
 
-  /* ==========================================================
-     STOP WHEN PAGE BECOMES HIDDEN
-     ========================================================== */
-
+  // STOP WHEN PAGE BECOMES HIDDEN
   useEffect(() => {
     if (!isRecording) return;
 
@@ -540,20 +502,14 @@ const StoryRecorder = () => {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [isRecording, stopRecording]);
 
-  /* ==========================================================
-     SHOW STORY AGAIN AFTER RETRY
-     ========================================================== */
-
+  // SHOW STORY AGAIN AFTER RETRY
   useEffect(() => {
     if (!audioBlob) {
       setShowText(true);
     }
   }, [audioBlob]);
 
-  /* ==========================================================
-     RETRY
-     ========================================================== */
-
+  // RETRY
   const handleRetry = () => {
     if (audioURL) {
       URL.revokeObjectURL(audioURL);
@@ -566,15 +522,7 @@ const StoryRecorder = () => {
     setShowText(true);
   };
 
-  /* ==========================================================
-     SUBMIT ATTEMPT
-     
-     IMPORTANT:
-     No backend upload.
-     No API call.
-     Just show confirmation.
-     ========================================================== */
-
+  // SUBMIT ATTEMPT
   const handleFinalSubmit = () => {
     if (!audioBlob) {
       alert("No audio recorded");
@@ -584,10 +532,7 @@ const StoryRecorder = () => {
     setSubmitted(true);
   };
 
-  /* ==========================================================
-     MICROPHONE DIALOG
-     ========================================================== */
-
+  // MICROPHONE DIALOG
   const DesktopMicContent = (
     <>
       {!recorderSupported ? (
@@ -713,10 +658,7 @@ const StoryRecorder = () => {
     </Dialog>
   );
 
-  /* ==========================================================
-     CONFIRMATION SCREEN
-     ========================================================== */
-
+  // CONFIRMATION SCREEN
   if (submitted) {
     return (
       <div className="recorder-page">
@@ -751,10 +693,7 @@ const StoryRecorder = () => {
     );
   }
 
-  /* ==========================================================
-     MAIN RECORDER SCREEN
-     ========================================================== */
-
+  // MAIN RECORDER SCREEN
   return (
     <div className="recorder-page">
       {DesktopMicModal}
