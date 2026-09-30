@@ -55,6 +55,11 @@ function getWasmModule() {
   return wasmModulePromise;
 }
 
+// Preload WASM when the client component is mounted.
+export function preloadWasm() {
+  return getWasmModule();
+}
+
 export async function checkAudioQuality(audioBlob) {
   if (!audioBlob) {
     throw new Error("No audio blob provided");

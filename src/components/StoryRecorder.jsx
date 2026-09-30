@@ -21,7 +21,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import CloseIcon from "@mui/icons-material/Close";
 
 import "./StoryRecorder.css";
-import { checkAudioQuality } from "../utils/audioQualityChecker";
+import { checkAudioQuality, preloadWasm } from "../utils/audioQualityChecker";
 
 // HARDCODED STORY
 const STORY_TITLE = "The Little Forest Adventure";
@@ -51,6 +51,9 @@ const StoryRecorder = () => {
   const [showText, setShowText] = useState(true);
   const [initializing, setInitializing] = useState(false);
   const [stopping, setStopping] = useState(false);
+
+  const [wasmReady, setWasmReady] = useState(false);
+  const [wasmLoading, setWasmLoading] = useState(true);
 
   const [recorderSupported, setRecorderSupported] = useState(true);
   const [permissionGranted, setPermissionGranted] = useState(false);
@@ -225,6 +228,36 @@ const StoryRecorder = () => {
 
     return () => cleanupRecording();
   }, [checkSupportAndPermission]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadWasm = async () => {
+      try {
+        setWasmLoading(true);
+
+        await preloadWasm();
+
+        if (mounted) {
+          setWasmReady(true);
+          setWasmLoading(false);
+        }
+      } catch (error) {
+        console.error("WASM preload failed:", error);
+
+        if (mounted) {
+          setWasmReady(false);
+          setWasmLoading(false);
+        }
+      }
+    };
+
+    loadWasm();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // REQUEST MICROPHONE PERMISSION
   const requestMicPermission = useCallback(() => {
@@ -404,6 +437,12 @@ const StoryRecorder = () => {
           if (result.isNoisy) {
             setShowText(true);
             alert("Noisy audio detected.");
+            return;
+          }
+
+          if (result.noSpeech) {
+            setShowText(true);
+            alert("Insufficient speech detected.");
             return;
           }
 
@@ -748,7 +787,7 @@ const StoryRecorder = () => {
             <Button
               variant="contained"
               onClick={startRecording}
-              disabled={initializing || stopping}
+              disabled={initializing || stopping || !wasmReady}
               sx={{
                 backgroundColor: "#007bff",
                 borderRadius: "30px",
