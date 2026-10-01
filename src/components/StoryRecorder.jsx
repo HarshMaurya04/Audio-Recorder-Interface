@@ -233,23 +233,14 @@ const StoryRecorder = () => {
   useEffect(() => {
     let mounted = true;
 
-    const loadWasm = async () => {
-      try {
-        await preloadWasm();
-
-        if (mounted) {
-          setWasmReady(true);
-        }
-      } catch (error) {
+    preloadWasm()
+      .then(() => {
+        if (mounted) setWasmReady(true);
+      })
+      .catch((error) => {
         console.error("WASM preload failed:", error);
-
-        if (mounted) {
-          setWasmReady(false);
-        }
-      }
-    };
-
-    loadWasm();
+        if (mounted) setWasmReady(false);
+      });
 
     return () => {
       mounted = false;
