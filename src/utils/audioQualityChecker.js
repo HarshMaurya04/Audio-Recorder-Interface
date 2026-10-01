@@ -55,7 +55,7 @@ function getWasmModule() {
   return wasmModulePromise;
 }
 
-// Preload WASM when the client component is mounted.
+// Preload WASM when the component is mounted.
 export function preloadWasm() {
   return getWasmModule();
 }
@@ -65,6 +65,8 @@ export async function checkAudioQuality(audioBlob) {
     throw new Error("No audio blob provided");
   }
 
+  // If WASM was already loaded by preloadWasm(),
+  // this returns the existing promise.
   const mod = await getWasmModule();
 
   let inputPtr = 0;

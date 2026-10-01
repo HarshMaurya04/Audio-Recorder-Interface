@@ -53,7 +53,6 @@ const StoryRecorder = () => {
   const [stopping, setStopping] = useState(false);
 
   const [wasmReady, setWasmReady] = useState(false);
-  const [wasmLoading, setWasmLoading] = useState(true);
 
   const [recorderSupported, setRecorderSupported] = useState(true);
   const [permissionGranted, setPermissionGranted] = useState(false);
@@ -234,20 +233,16 @@ const StoryRecorder = () => {
 
     const loadWasm = async () => {
       try {
-        setWasmLoading(true);
-
         await preloadWasm();
 
         if (mounted) {
           setWasmReady(true);
-          setWasmLoading(false);
         }
       } catch (error) {
         console.error("WASM preload failed:", error);
 
         if (mounted) {
           setWasmReady(false);
-          setWasmLoading(false);
         }
       }
     };
